@@ -1,0 +1,12 @@
+﻿  Input.cpp
+d:\projects\keyboardinputtimestamp\nativeproj\inputplugin\inputplugin\Input.h(4): warning C4005: 'INPUT_EXPORTS': macro redefinition
+  d:\projects\keyboardinputtimestamp\nativeproj\inputplugin\inputplugin\Input.h(4): note: command-line arguments:  see previous definition of 'INPUT_EXPORTS'
+Input.cpp(21): warning C4800: 'int': forcing value to bool 'true' or 'false' (performance warning)
+     Creating library D:\Projects\KeyboardInputTimestamp\NativeProj\InputPlugin\x64\Release\InputPlugin.lib and object D:\Projects\KeyboardInputTimestamp\NativeProj\InputPlugin\x64\Release\InputPlugin.exp
+  Generating code
+  1 of 163 functions ( 0.6%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    0 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  InputPlugin.vcxproj -> D:\Projects\KeyboardInputTimestamp\NativeProj\InputPlugin\x64\Release\InputPlugin.dll
+  InputPlugin.vcxproj -> D:\Projects\KeyboardInputTimestamp\NativeProj\InputPlugin\x64\Release\InputPlugin.pdb (Full PDB)
