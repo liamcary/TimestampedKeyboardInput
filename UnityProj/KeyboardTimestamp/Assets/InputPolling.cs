@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using AOT;
 using UnityEngine;
 
 public class InputPolling : MonoBehaviour
@@ -9,8 +10,21 @@ public class InputPolling : MonoBehaviour
 	int VK_B = 0x42;
 	int VK_C = 0x43;
 
+	[StructLayout (LayoutKind.Sequential)]
+	struct KeyEvent
+	{
+		public int Key;
+		public double TimeStamp;
+	}
+
 	[UnmanagedFunctionPointer (CallingConvention.Cdecl)]
 	internal delegate void KeyDownCallback (int val);
+
+	[DllImport ("InputPlugin", EntryPoint = "GetCurrentTimeStamp", CallingConvention = CallingConvention.Cdecl)]
+	static extern double GetCurrentTimeStamp ();
+
+	[DllImport ("InputPlugin", EntryPoint = "GetKeyEvent", CallingConvention = CallingConvention.Cdecl)]
+	static extern bool GetKeyEvent ([MarshalAs(UnmanagedType.Struct)] ref KeyEvent keyEvent);
 
 	[DllImport ("InputPlugin", EntryPoint = "StartPolling", CallingConvention = CallingConvention.Cdecl)]
 	static extern void StartPolling ();
@@ -21,28 +35,10 @@ public class InputPolling : MonoBehaviour
 	[DllImport ("InputPlugin", EntryPoint = "RegisterInput", CallingConvention = CallingConvention.Cdecl)]
 	static extern void RegisterInput (int keyCode);
 
-	[DllImport ("InputPlugin", EntryPoint = "SetKeyDownCallback", CallingConvention = CallingConvention.Cdecl)]
-	static extern void SetKeyDownCallback (KeyDownCallback callback);
-
-	readonly object callbackLock = new object ();
-	KeyDownCallback keyDownCallback;
-
-	public class KeyDownEvent
-	{
-		public int KeyCode;
-		public DateTime TimeStamp;
-	}
-
-	readonly Queue<KeyDownEvent> eventsQueue = new Queue<KeyDownEvent> ();
-
-	DateTime lastFrameTime;
+	double lastFrameTime;
 
 	void Start ()
 	{
-		keyDownCallback = OnKeyDown;
-
-		SetKeyDownCallback (keyDownCallback);
-
 		RegisterInput (VK_A);
 		RegisterInput (VK_B);
 		RegisterInput (VK_C);
@@ -52,68 +48,31 @@ public class InputPolling : MonoBehaviour
 		StartPolling ();
 	}
 
-	void OnApplicationQuit ()
-	{
-		keyDownCallback = null;
-
-		Debug.Log ("Quitting");
-
-		lock (callbackLock) {
-			StopPolling ();
-		}
-	}
-
 	void OnDestroy ()
 	{
-		keyDownCallback = null;
 		Debug.Log ("Stopping polling");
 
-		lock (callbackLock) {
-			StopPolling ();
-		}
+		StopPolling ();
 	}
 
 	void Update ()
 	{
-		int eventCount = 0;
-		lock (callbackLock) {
-			eventCount = eventsQueue.Count;
-		}
+		double frameTime = GetCurrentTimeStamp ();
 
-		if (eventCount > 0) {
-			Debug.LogFormat ("Frame time: {0}, Last Frame Time: {1}", 
-				DateTime.Now.ToString("mm:ss.ffffff"), 
-				lastFrameTime.ToString("mm:ss.ffffff"));
-		}
+		KeyEvent ke = new KeyEvent ();
 
-		while (eventCount > 0) {
-			KeyDownEvent keyDownEvent = null;
+		bool frameLogged = false;
 
-			lock (callbackLock) {
-				keyDownEvent = eventsQueue.Dequeue ();
-				eventCount = eventsQueue.Count;
+		while (GetKeyEvent (ref ke)) {
+			if (!frameLogged) {
+				Debug.LogFormat ("Frame time: {0:F5}, Last Frame Time: {1:F5}", frameTime, lastFrameTime);
+				frameLogged = true;
 			}
 
-			if (keyDownEvent == null) {
-				continue;
-			}
-
-			Debug.LogFormat ("Key {0} Time: {1}, Percent: {2}", 
-				keyDownEvent.KeyCode.ToString ("X2"), 
-				keyDownEvent.TimeStamp.ToString ("mm:ss.ffffff"),
-				((keyDownEvent.TimeStamp - lastFrameTime).TotalMilliseconds / (DateTime.Now - lastFrameTime).TotalMilliseconds).ToString ("0.00"));
+			Debug.LogFormat ("Key {0:X2} Time: {1:F5}, Percent: {2:F3}",
+				ke.Key, ke.TimeStamp, (ke.TimeStamp - lastFrameTime) / (frameTime - lastFrameTime));
 		}
 
-		lastFrameTime = DateTime.Now;
-	}
-
-	void OnKeyDown (int keyCode)
-	{
-		lock (callbackLock) {
-			eventsQueue.Enqueue (new KeyDownEvent {
-				KeyCode = keyCode,
-				TimeStamp = DateTime.Now
-			});
-		}
+		lastFrameTime = frameTime;
 	}
 }

@@ -2,18 +2,23 @@
 
 #include <Mmsystem.h>
 #include <map>
+#include <mutex>
+#include <queue>
 #include <time.h>
 
 UINT timerId = 0;
 std::map<int, bool> keyStates; // true == pressed
-KeyDownCallback keyDownCallback;
+
+std::mutex eventMutex;
+std::queue<keyEvent*> events;
+
+double GetCurrentTimeStamp()
+{
+	return clock() / (double)CLOCKS_PER_SEC;
+}
 
 void CALLBACK TimerCallback(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2)
 {
-	if (!keyDownCallback) {
-		return;
-	}
-
 	for (auto &key : keyStates)
 	{
 		short keyState = GetAsyncKeyState(key.first);
@@ -21,10 +26,39 @@ void CALLBACK TimerCallback(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PT
 		bool isPressed = keyState & 0x8000;
 
 		if (!key.second && isPressed) {
-			keyDownCallback(key.first);
+			keyEvent* pEvent = new keyEvent();
+			pEvent->key = key.first;
+			pEvent->timeStamp = GetCurrentTimeStamp();
+
+			std::lock_guard<std::mutex> lock(eventMutex);
+
+			events.push(pEvent);
 		}
 
 		key.second = isPressed;
+	}
+}
+
+bool GetKeyEvent(keyEvent* pKeyEvent)
+{
+	std::lock_guard<std::mutex> lock(eventMutex);
+	
+	if (events.size() > 0) {
+		OutputDebugString("Events!!");
+
+		keyEvent* pEvent = events.front();
+		events.pop();
+
+		pKeyEvent->key = pEvent->key;
+		pKeyEvent->timeStamp = pEvent->timeStamp;
+
+		delete pEvent;
+
+		return true;
+	}
+	else {
+		OutputDebugString("No events");
+		return false;
 	}
 }
 
@@ -44,6 +78,9 @@ void StartPolling()
 		OutputDebugString("TimeSetEvent failed");
 		return;
 	}
+	else {
+		OutputDebugString("TimeSetEvent succeeded");
+	}
 
 	timerId = result;
 }
@@ -60,11 +97,5 @@ void StopPolling()
 	timeKillEvent(timerId);
 	timerId = 0;
 
-	keyDownCallback = NULL;
 	keyStates.clear();
-}
-
-void SetKeyDownCallback(KeyDownCallback callback)
-{
-	keyDownCallback = callback;
 }
